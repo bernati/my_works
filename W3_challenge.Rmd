@@ -1,0 +1,271 @@
+---
+title: "Challenge_Stats"
+author: "Bernat"
+date: "30 May 2019"
+output: html_document
+---
+```{r}
+getwd()
+#setwd('C:/Users/Bernat/Desktop/template/bernat/Module_2_Statistics/5_Regression_Analysis')
+#getwd()
+```
+#Import the data file
+
+```{r}
+data_set <- read.csv('GATT_TR_KR.csv')
+
+data_set
+```
+#Import library and convert figures to non power format
+```{r}
+library(dplyr)
+options("scipen" = 10)
+options()$scipen
+```
+#Select specific columns. With this selection we gather country gdp, gdp per capita, trade and GATT belonging yes or not.
+```{r}
+gdpgroup_gatt_yes = select(data_set, year, rep_code, gdpp_rep, gdp_rep,gatt_dejure_rep,trade)
+#gdpgroup
+
+gdpgroup_gatt_yes=na.omit(gdpgroup_gatt_yes)
+gdpgroup_gatt_yes
+```
+#In this selection we group the data by country and get the mean throught the 1973-1973 period....of the countries's GDP, and per capita GDP
+```{r}
+gdp_means<-aggregate(gdpgroup_gatt_yes[,3:5], list(gdpgroup_gatt_yes$rep_code), mean)
+gdp_means
+```
+#In this selection we group the all info per year....we see the MEAN of whole world's economy as a total.
+```{r}
+year_means<-aggregate(gdpgroup_gatt_yes[,3:4], list(gdpgroup_gatt_yes$year),mean)
+year_means
+#type(year_means)
+```
+#In this selection we have the total trade on year basis.FOR THE COUNTRIES IN THE GATT
+```{r}
+trade<-aggregate((gdpgroup_gatt_yes$trade),list(gdpgroup_gatt_yes$year),sum)
+#trade
+names(trade)[1]='Year'
+trade
+```
+
+
+
+```{r}
+mean(trade$x)
+means = replicate(10000, mean(sample(trade$x, size = 4, replace = TRUE)))
+quantile(means, c(0.025, 0.975))
+hist(means)
+mean(means)
+```
+#Analysis GATT vs No GATT
+```{r}
+gdpgroup_gatt_yes = select(data_set, year,gatt_dejure_rep, rep_code, gdpp_rep, gdp_rep,trade)
+#gdpgroup
+
+gdpgroup_gatt_yes=na.omit(gdpgroup_gatt_yes)
+gdpgroup_gatt_yes
+```
+
+
+```{r}
+gatt_yes<-aggregate(gdpgroup_gatt_yes[,4:6], by = (gdpgroup_gatt_yes[1:2]), mean)
+gatt_yes=gatt_yes[order(gatt_yes$year),]
+gatt_yes
+```
+
+
+#3Q regression model. We chose Jamaica as reference country, and we will try to analyse their trading partners and mostly traded comms.
+```{r}
+data_set=na.omit(data_set)
+Jamaica = filter(data_set,rep_code == 388)
+#Jamaica
+row.names(Jamaica)<-1:nrow(Jamaica)#index the DF
+Jamaica
+```
+#In this selection, we filter out the rows where trade is 0.So we have the rows with trade by commodity code and partner.
+```{r}
+Jamaica = filter(data_set, year, rep_code == 388, gdpp_rep, gdp_rep,gatt_dejure_rep,trade >0)
+nrow(Jamaica)
+Jamaica
+#reg<-lm(trade~distance+gdp_part+gdpp_part+gatt_defacto,data = Jamaica)
+summary(reg)
+```
+#here we scale the numerical values by columns
+```{r}
+Jamaica$trade<-scale(Jamaica$trade)
+Jamaica$gdpp_rep<-scale(Jamaica$gdpp_rep)
+Jamaica$gdp_rep<-scale(Jamaica$gdp_rep)
+Jamaica$pop_rep<-scale(Jamaica$pop_rep)
+Jamaica$gdp_part<-scale(Jamaica$gdp_part)
+Jamaica$pop_part<-scale(Jamaica$pop_part)
+Jamaica$distance<-scale(Jamaica$distance)
+Jamaica$gdpp_part<-scale(Jamaica$gdpp_part)
+Jamaica
+
+```
+
+```{r}
+reg<-lm(trade~distance+gdp_part+gatt_defacto_part+pop_part+island_part, data = Jamaica)
+summary(reg)
+```
+
+#We select for Jamaica the specific columns of interest
+
+```{r}
+jam = select(Jamaica, year,comm_code, part_code,trade,gatt_dejure_rep)
+jam
+
+```
+```{r}
+library(varhandle)
+dummies<-to.dummy(Jamaica$comm_code, "commodity" )
+
+row.names(dummies)<-1:nrow(dummies)
+dummies
+```
+
+```{r}
+library(plyr)
+nrow(Jamaica)
+nrow(dummies)
+total_Jamaica <- merge(Jamaica, dummies, by=0, all=TRUE)
+#total_Jamaica<-merge(Jamaica,dummies)
+nrow(total_Jamaica)
+total_Jamaica
+```
+```{r}
+reg<-lm(trade~distance+gdp_part+gdpp_part+gatt_defacto+gatt_dejure_part+commodity.24321+commodity.24322+commodity.71931+commodity.71842+commodity.72952, data = total_Jamaica)#commodity.68212+commodity.72952+commodity.73291+commodity.73492+commodity.84111+commodity.84112+commodity.84144+commodity.85102+commodity.89111
+summary(reg)
+```
+###########################################################################
+
+
+
+
+
+
+
+
+
+#We obtain total trade figures by commodity type
+
+```{r}
+jam = select(Jamaica, year,comm_code, part_code,trade,gatt_dejure_rep)
+jam
+```
+
+```{r}
+jam1<-aggregate(jam$trade,by = (jam[2]),sum)
+jam1<-jam1 #%>%#rename(trade = x)
+jam1
+```
+#We ORDER this table by trade amount
+```{r}
+jam2<-jam1[order(-jam1$x),]
+jam2
+```
+#We obtain total trade figures by partner country
+
+```{r}
+jam3<-aggregate(jam$trade,by = (jam[3]),sum)
+jam3<-jam3 %>%
+  rename(trade = x)
+jam3
+```
+#SORTED TRADING PARTNERS, BY NO SURPRISE USA ON TOP
+```{r}
+jam4<-jam3[order(-jam3$trade),]
+jam4
+```
+#FULL TRADE BY COMMODITY CODE
+```{r}
+Trade = select(Jamaica, year,comm_code,trade,part_code)
+Trade
+```
+#this is trade by commodity code
+```{r}
+Trade_sorted<-Trade[order(Trade$year,Trade$comm_code),]
+Trade_sorted
+by_commo <-Trade_sorted %>% group_by(comm_code)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#summarise(.jam, ...)
+jam1<-aggregate(jam$trade,by = (jam[2:3]),sum)
+jam1<-jam1 %>%
+  rename(trade = x)
+jam1
+#gatt_yes=gatt_yes[order(gatt_yes$year),]
+#jam1<-group_by(jam[,3:4], by = (jam[1:2]), sum)
+#jam1
+#jam1<-jam1[order(jam1$trade)]
+
+```
+```{r}
+jam2<-jam1[order(-jam1$trade),]
+jam2
+```
+
+```{r}
+#jam3<-aggregate(jam1$trade,by = (jam[1]), sum)
+jam3<-aggregate((jam1$trade),list(jam1$comm_code),sum)
+jam3
+```
+```{r}
+jam5<-aggregate((jam1$trade),list(jam1$part_code),sum)
+jam5
+plot(jam5)
+```
+```{r}
+partners<-t(jam5)
+partners
+```
+```{r}
+barplot(t(jam5))
+```
+
+```{r}
+jam4<-jam3[order(jam3$Group.1),]
+jam4
+```
+
+```{r}
+t(jam4)
+```
+
+```{r}
+barplot(t(jam4))
+plot(t(jam4))
+#lm(x~Group.1)
+```
+eq<-lm(jam2$trade~partners[1:44])
+```{r}
+#eq<-lm(jam2$trade~partners[1]+partners[2]+partners[3]+partners[4])
+```
+
